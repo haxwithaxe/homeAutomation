@@ -39,12 +39,13 @@ import gdata.calendar
 import atom
 import getopt
 import sys
+import urllib
 import string
 from operator import itemgetter
 
 d = datetime.datetime
-user = 'gcaluser'
-pw = 'gcalpass'
+user = 'googleuser'
+pw = 'googlepassword'
 
 # this one is for DC metro uses you can change this to something else if you want
 metrourl = 'http://www.wmata.com/rider_tools/metro_service_status/feeds/rail.xml'
@@ -81,7 +82,66 @@ slashre = re.compile('/')
 warnDatere = re.compile('Expires:[0-9]{12}')
 warnMsgre = re.compile('[0-9]{3,4} [AP]M [A-Z]{3} [A-Z]{3} [A-Z]{3} [0-9]{2} [0-9]{4}[\n]\.\.\.[A-Z]*[\S\s\n\r]*\$\$')
 
-class getGdataItems:
+GOOGLETSFORMAT = '%Y-%m-%dT%H:%M:%S'
+CALSAYDATE = '%H:%M%p'
+TODAY = d.today()
+TOMORROW = TODAY + datetime.timedelta(days=1)
+
+class getGcalItems:
+
+   def __init__(self, email, password):
+      self.cal_client = gdata.calendar.service.CalendarService()
+      self.cal_client.email = email
+      self.cal_client.password = password
+      self.cal_client.source = 'Google-Calendar_Python_Sample-1.0'
+      self.cal_client.ProgrammaticLogin()
+      self.author = 'api.rboyd@gmail.com (Ryan Boyd)'
+
+   def _DateRangeQuery(self, start_date='1970-01-01', end_date='2069-12-31'):
+      cal_list = self.cal_client.GetAllCalendarsFeed()
+      for c in cal_list.entry:
+         uri = urllib.unquote(c.id.text.split('/')[8])
+         #print(uri)
+         query = gdata.calendar.service.CalendarEventQuery(uri,'private','full')
+         query.start_min = start_date
+         query.start_max = end_date 
+         feed = self.cal_client.CalendarQuery(query)
+         for i in feed.entry:
+            who = []
+            if i.title.text:
+               string = i.title.text
+            else:
+               string = 'Appointment'
+            for w in i.who:
+               if w.name != feed.title.text:
+                 who.append(w.name)
+            try:
+               if len(who) > 0:
+                  string += ' with '
+                  if len(who) > 1:
+                     for l,p in enumerate(who):
+                        if l == 0:
+                           string += p
+                        else:
+                           string += ' and '+p
+                  else:
+                     string += 'with '+who[0]
+            except:
+               if len(i.content.text) > 0:
+                  string += 'with '+i.content.text
+            if i.where[0].value_string:
+               string += ' at '+i.where[0].value_string
+            if i.when[0].start_time:
+               try:
+                  string += ' at '+d.strptime(i.when[0].start_time.split('.')[0],GOOGLETSFORMAT).strftime(CALSAYDATE)
+               except:
+                  continue
+         festival.say(string+' ...')
+
+   def Run(self,start_date,end_date):
+      return self._DateRangeQuery(start_date,end_date)
+
+class getTodoItems:
   def __init__(self, email, password):
     self.gd_client = gdata.spreadsheet.service.SpreadsheetsService()
     self.gd_client.email = email
@@ -234,8 +294,8 @@ def sayRSS(url):
 def say_todos(ToDos):
    sortfirst = 1
    sortsecond = 2
-   sample = getGdataItems(user, pw)
-   s = sorted(sample.Run(ToDos),key=itemgetter(sortfirst))
+   todosheet = getTodoItems(user, pw)
+   s = sorted(todosheet.Run(ToDos),key=itemgetter(sortfirst))
    todos = sorted(s,key=itemgetter(sortsecond))
    todolist = []
    lowprilist = []
@@ -257,6 +317,11 @@ def say_todos(ToDos):
    for i in lowprilist:
       festival.say(i)
 
+def say_gcal(when):
+   gcalsession = getGcalItems(user, pw)
+   if when == 'today':
+      gcalsession.Run(TODAY.strftime('%Y-%m-%d'),TOMORROW.strftime('%Y-%m-%d'))
+
 def main():
    saytodo = True
    todolist = HOMETODO
@@ -268,7 +333,7 @@ def main():
    festival.say('good morning ... it\'s time to get up ...')
 
 
-   for i in workdays:
+   '''for i in workdays:
       if today == i:
          thisday = 'wokday'
 
@@ -306,13 +371,13 @@ def main():
       get_warning(warn_md004_url)
       get_warning(warn_md003_url)
    if thisday == 'exception':
-      festival.say(messages[now.strftime(dateformat)])
+      festival.say(messages[now.strftime(dateformat)])'''
 
    if saytodo == True:
      # say the todo list from google docs spreadsheet
-      festival.say('Your To Do List And Appointments For Today ...')
-      say_todos(todolist)
-      say_gcal()
+      #festival.say('Your To Do List And Appointments For Today ...')
+      #say_todos(todolist)
+      say_gcal('today')
 
 
 if __name__ == '__main__':
