@@ -26,7 +26,17 @@ except ImportError:
   from elementtree import ElementTree
 import xml.dom.minidom
 import feedparser
-import festival
+try:
+   import festival
+   TTSENGINE = festival
+   pyttsx = False
+except ImportError:
+   try:
+      import pyttsx
+      TTSENGINE = pyttsx
+   except ImportError:
+      print('please install either festival or pttsx')
+      exit()
 import datetime
 import time
 import re
@@ -44,6 +54,7 @@ import string
 from operator import itemgetter
 
 d = datetime.datetime
+
 user = 'googleuser'
 pw = 'googlepassword'
 
@@ -112,6 +123,19 @@ GOOGLETSFORMAT = '%Y-%m-%dT%H:%M:%S'
 CALSAYDATE = '%H:%M%p'
 TODAY = d.today()
 TOMORROW = TODAY + datetime.timedelta(days=1)
+
+class TTS:
+   # Abstract the TTS method
+   def __init__(self):
+      self.ttsengine = TTSENGINE
+      self.enginename = str(TTSENGINE)
+      if self.ttsengine == pyttsx:
+         self.ttsengine = pyttsx.init()
+
+   def say(self,text):
+      self.ttsengine.say(text)
+      if self.ttsengine == pyttsx:
+         self.ttsengine.runAndWait()
 
 class getGcalItems:
 
@@ -224,7 +248,7 @@ def get_url(url):
    import urllib2
    try: return urllib2.urlopen(url).read()
    except urllib2.URLError:
-      festival.say('I failed to retrieve the required data ...')
+      tts.say('I failed to retrieve the required data ...')
       return False
 
 def get_metar(Id, headers=None, murl=None):
@@ -256,7 +280,7 @@ def get_metar(Id, headers=None, murl=None):
             if line.endswith(":0"):
                line = line[:-2]
             msg = unabriv(line)+' ...'
-            festival.say(msg)
+            tts.say(msg)
 
 
 def get_forecast(city, st, flines="0", furl=None):
@@ -281,7 +305,7 @@ def get_forecast(city, st, flines="0", furl=None):
    for line in lines[5:10]:
       if line.startswith("."):
          msg = unabriv(line).replace(".", "", 1)
-         festival.say(msg)
+         tts.say(msg)
 
 
 def get_weather(Id, city, st):
@@ -292,12 +316,12 @@ def get_warning(url):
    warnings = get_url(url)
    if not warnings:
       print('no data returned from url provided\n')
-      return False
+      return []
    try:
       date = warnDatere.findall(warnings)
    except:
       print('no date in page from url\n')
-      return False
+      return []
    if d.strptime(date[0],NWSDateFormat) > d.today():
       msglist = []
       msgs = warnMsgre.findall(warnings)
@@ -307,7 +331,7 @@ def get_warning(url):
       return msglist
    else:
       print('expired message\n')
-   return True
+      return []
 
 def say_warnings(urls):
    warnings = []
@@ -315,7 +339,7 @@ def say_warnings(urls):
       warnings = set(warnings).union(get_warning(url))
    for w in warnings:
       print(w)
-      festival.say(w)
+      tts.say(w)
 
 def sayRSS(url):
    try:
@@ -326,8 +350,8 @@ def sayRSS(url):
    festival.say(f.feed.title)
    for i in f.entries:
       msg = unabriv(re.sub(brre,'\n',i.description).replace('/',' or '))+' ...'
-      festival.say(msg)
-      print(msg)
+      tts.say(msg)
+      #print(msg)
 
 def say_todos(ToDos):
    sortfirst = 1
@@ -354,19 +378,19 @@ def say_todos(ToDos):
    for i in todolist:
       festival.say(i)
    for i in lowprilist:
-      festival.say(i)
+      tts.say(i)
    if len(todolist)+len(lowprilist) == 0:
-      festival.say('No to do\'s for today ...')
+      tts.say('No to do\'s for today ...')
 
 def say_gcal(when):
    gcalsession = getGcalItems(user, pw)
    if when == 'today':
       events = gcalsession.Run(TODAY.strftime('%Y-%m-%d'),TOMORROW.strftime('%Y-%m-%d'))
    if len(events) == 0:
-      festival.say('No appointments today ...')
+      tts.say('No appointments today ...')
    else:
       for i in events:
-         festival.say(i)
+         tts.say(i)
 
 def main():
    saytodo = True
@@ -389,12 +413,12 @@ def main():
 
    if thisday == 'workday':
      # make the computer say the weather and the date
-      festival.say('Transit and Weather Information for '+d.now().strftime('%A %d %B %Y')+' ...')
+      tts.say('Transit and Weather Information for '+d.now().strftime('%A %d %B %Y')+' ...')
       #print("It's "+today)
-      festival.say('Weather for Kensington ...')
+      tts.say('Weather for Kensington ...')
       get_weather('KIAD','washington_dulles_intl_airport','va')
       #print('got the weather for kensington')
-      festival.say('Weather for Baltimore ...')
+      tts.say('Weather for Baltimore ...')
       get_weather('KBWI','baltimore-washington_intl_airport','md')
       #print('got the weather for baltimore')
      # make the computer read the Metro and MARC RSS data
@@ -404,8 +428,8 @@ def main():
       todolist = WORKTODO
    if thisday == 'offday':
      # same as above just for my home town instead of both home and school
-      festival.say('Transit and Weather Information for '+d.now().strftime('%A %d %B %Y')+' ...')
-      festival.say('Weather for Kensington ...')
+      tts.say('Transit and Weather Information for '+d.now().strftime('%A %d %B %Y')+' ...')
+      tts.say('Weather for Kensington ...')
       get_weather('KIAD','washington_dulles_intl_airport','va')
       saytodo = True
 
@@ -415,9 +439,10 @@ def main():
 
    if saytodo == True:
      # say the todo list from google docs spreadsheet
-      festival.say('Your To Do List And Appointments For Today ...')
+      tts.say('Your To Do List And Appointments For Today ...')
       say_todos(todolist)
       say_gcal('today')
 
 if __name__ == '__main__':
-  main()
+   tts = TTS()
+   main()
