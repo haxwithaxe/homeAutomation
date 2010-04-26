@@ -29,11 +29,12 @@ import feedparser
 try:
    import festival
    TTSENGINE = festival
-   pyttsx = False
+   TTSENGINENAME = 'festival'
 except ImportError:
    try:
       import pyttsx
       TTSENGINE = pyttsx
+      TTSENGINENAME = 'pyttsx'
    except ImportError:
       print('please install either festival or pttsx')
       exit()
@@ -128,13 +129,13 @@ class TTS:
    # Abstract the TTS method
    def __init__(self):
       self.ttsengine = TTSENGINE
-      self.enginename = str(TTSENGINE)
-      if self.ttsengine == pyttsx:
+      self.enginename = TTSENGINENAME
+      if self.enginename == 'pyttsx':
          self.ttsengine = pyttsx.init()
 
    def say(self,text):
       self.ttsengine.say(text)
-      if self.ttsengine == pyttsx:
+      if self.enginename == 'pyttsx':
          self.ttsengine.runAndWait()
 
 class getGcalItems:
