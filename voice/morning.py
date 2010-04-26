@@ -64,12 +64,6 @@ WORKTODO = 'Work Todo'
 # THESE MUST BE IN THE TREE LETTER DAY OF THE WEEK FORMAT
 workdays = ['Tue','Thu'] # work days
 offdays = ['Mon','Wed','Fri','Sat','Sun'] # days off
-
-# exception types: single day, recuring, and messages (the computer will read the message on the date of the exception)
-exceptions = ['16/02/2010'] # this is a list of dates that will either be silent or will have a special message set below
-recurring = ['25/12'] # these are recurring dates that have exceptions associated with them year to year
-# this is a dictionary of dates that have messages associated with them
-messages = {'12/12/2012': 'Welcome to the end of the world', '16/02/2010': 'This is a test of the exceptions message functionality'}
 ########################################################################
 
 ## regex stuff do not touch!!
@@ -81,6 +75,38 @@ brre = re.compile('<br />')
 slashre = re.compile('/')
 warnDatere = re.compile('Expires:[0-9]{12}')
 warnMsgre = re.compile('[0-9]{3,4} [AP]M [A-Z]{3} [A-Z]{3} [A-Z]{3} [0-9]{2} [0-9]{4}[\n]\.\.\.[A-Z]*[\S\s\n\r]*\$\$')
+warnTSre = re.compile('[0-9]{3,4} [AP]M [A-Z]{3} [A-Z]{3} [A-Z]{3} [0-9]{2} [0-9]{4}[\s\n\r]*\.\.\.')
+warnTailre = re.compile('\&\&.*[\S\s\n\r]*\$\$')
+
+ABRVLIST = [
+['\.\.\.',', '],
+['[^a-zA-Z]EST[\W]',' eastern standard time '],
+['[^a-zA-Z]EDT[\W]',' eastern daylight time '],
+['[^a-zA-Z]MPH[\W]',' miles per hour '],
+['[^a-zA-Z]N[\W]',' north '],
+['[^a-zA-Z]NNE[\W]',' north north east '],
+['[^a-zA-Z]NE[\W]',' north east '],
+['[^a-zA-Z]ENE[\W]',' east north east '],
+['[^a-zA-Z]E[\W]',' east '],
+['[^a-zA-Z]ESE[\W]',' east south east '],
+['[^a-zA-Z]SE[\W]','south east'],
+['[^a-zA-Z]SSE[\W]',' south south east '],
+['[^a-zA-Z]S[\W]',' south '],
+['[^a-zA-Z]SSW[\W]','south south west'],
+['[^a-zA-Z]SW[\W]','south west'],
+['[^a-zA-Z]WSW[\W]','west south west'],
+['[^a-zA-Z]W[\W]',' west '],
+['[^a-zA-Z]WNW[\W]',' west north west '],
+['[^a-zA-Z]NW[\W]',' north west '],
+['[^a-zA-Z]NNW[\W]',' north north west '],
+['[^a-zA-Z]MD[^a-zA-Z]',' maryland '],
+['[^a-zA-Z]VA[^a-zA-Z]',' virginia '],
+['[^a-zA-Z]INTL[^a-zA-Z]',' international '],
+['[^a-zA-Z]WMATA[^a-zA-Z]','W M A T A'],
+['[^a-zA-Z]F[\W]',' degrees fahrenheit '],
+['[^a-zA-Z]C[\W]',' degrees celsius'],
+['&amp;',' and '],
+] # END OF ABRVLIST
 
 GOOGLETSFORMAT = '%Y-%m-%dT%H:%M:%S'
 CALSAYDATE = '%H:%M%p'
@@ -98,6 +124,7 @@ class getGcalItems:
       self.author = 'api.rboyd@gmail.com (Ryan Boyd)'
 
    def _DateRangeQuery(self, start_date='1970-01-01', end_date='2069-12-31'):
+      events = []
       cal_list = self.cal_client.GetAllCalendarsFeed()
       for c in cal_list.entry:
          uri = urllib.unquote(c.id.text.split('/')[8])
@@ -136,7 +163,8 @@ class getGcalItems:
                   string += ' at '+d.strptime(i.when[0].start_time.split('.')[0],GOOGLETSFORMAT).strftime(CALSAYDATE)
                except:
                   continue
-         festival.say(string+' ...')
+            events.append(string+' ...')
+      return events
 
    def Run(self,start_date,end_date):
       return self._DateRangeQuery(start_date,end_date)
@@ -186,9 +214,10 @@ class getTodoItems:
     return self._ListGetAction()
 
 def unabriv(strin):
-   strstuff = strin.replace('MPH','miles per hour').replace(' N ','north').replace('NNE','north north east').replace('NE','north east').replace('ENE','east north east').replace(' E ',' east ').replace('ESE','east south east').replace('SE','south east').replace('SSE','south south east').replace(' S ',' south ').replace('SSW','south south west').replace('SW','south west').replace('WSW','west south west').replace(' W ',' west ').replace('WNW','west north west').replace('NW','north west').replace('NNW','north north west').replace('MD','maryland').replace('VA','virginia').replace('INTL','international').replace('WMATA','W M A T A').replace(' F ','degrees fahrenheit').replace(' C)',' degrees celsius').replace('&amp;','and')
-   strout = strstuff #parenre.sub('',strstuff)
-   return strout
+   for i in ABRVLIST:
+      strin = re.sub(i[0],i[1],strin)
+
+   return strin
 
 def get_url(url):
    """Return a string containing the results of a URL GET."""
@@ -270,14 +299,23 @@ def get_warning(url):
       print('no date in page from url\n')
       return False
    if d.strptime(date[0],NWSDateFormat) > d.today():
+      msglist = []
       msgs = warnMsgre.findall(warnings)
       for m in msgs:
-         msg = unabriv(m)+' ... ...'
-         festival.say('Weather Advisory ...')
-         festival.say(msg)
+         msg = unabriv(warnTSre.sub('',warnTailre.sub('',m)))+' ... ...'
+         msglist.append(msg)
+      return msglist
    else:
       print('expired message\n')
    return True
+
+def say_warnings(urls):
+   warnings = []
+   for url in urls:
+      warnings = set(warnings).union(get_warning(url))
+   for w in warnings:
+      print(w)
+      festival.say(w)
 
 def sayRSS(url):
    try:
@@ -300,27 +338,35 @@ def say_todos(ToDos):
    todolist = []
    lowprilist = []
    for i in todos:
-      if i[2] != '0' and i[2] != None:
-         output = i[0]
-         if i[1] != None:
-            output += ' by '+d.strptime(i[1],'%m/%d/%Y').strftime('%A %d %B')
-         output += ' ...'
-         todolist.append(output)
-      else:
-         lowpri = i[0]
-         if i[1] != None:
-            lowpri += ' by '+d.strptime(i[1],'%m/%d/%Y').strftime('%A %d %B')
-         lowpri += ' ...'
-         lowprilist.append(lowpri)
+      if not i[3] in ('Done','done','donE','doNE','dONE','DONe','DOne','DONE'):
+         if i[2] != '0' and i[2] != None:
+            output = i[0]
+            if i[1] != None:
+               output += ' by '+d.strptime(i[1],'%m/%d/%Y').strftime('%A %d %B')
+            output += ' ...'
+            todolist.append(output)
+         else:
+            lowpri = i[0]
+            if i[1] != None:
+               lowpri += ' by '+d.strptime(i[1],'%m/%d/%Y').strftime('%A %d %B')
+            lowpri += ' ...'
+            lowprilist.append(lowpri)
    for i in todolist:
       festival.say(i)
    for i in lowprilist:
       festival.say(i)
+   if len(todolist)+len(lowprilist) == 0:
+      festival.say('No to do\'s for today ...')
 
 def say_gcal(when):
    gcalsession = getGcalItems(user, pw)
    if when == 'today':
-      gcalsession.Run(TODAY.strftime('%Y-%m-%d'),TOMORROW.strftime('%Y-%m-%d'))
+      events = gcalsession.Run(TODAY.strftime('%Y-%m-%d'),TOMORROW.strftime('%Y-%m-%d'))
+   if len(events) == 0:
+      festival.say('No appointments today ...')
+   else:
+      for i in events:
+         festival.say(i)
 
 def main():
    saytodo = True
@@ -330,20 +376,16 @@ def main():
    thisday = 'anyday'
 
    # the fist thing the computer says
-   festival.say('good morning ... it\'s time to get up ...')
+   #festival.say('good morning ... it\'s time to get up ...')
 
 
-   '''for i in workdays:
+   for i in workdays:
       if today == i:
          thisday = 'wokday'
 
    for i in offdays:
       if today == i:
          thisday = 'offday'
-
-   for i in exceptions:
-      if now.strftime(dateformat) == i:
-         thisday == 'exception'
 
    if thisday == 'workday':
      # make the computer say the weather and the date
@@ -366,19 +408,16 @@ def main():
       festival.say('Weather for Kensington ...')
       get_weather('KIAD','washington_dulles_intl_airport','va')
       saytodo = True
+
    if thisday in ('workday','offday'):
      #regardless fo the type of day say the weather warnings that apply
-      get_warning(warn_md004_url)
-      get_warning(warn_md003_url)
-   if thisday == 'exception':
-      festival.say(messages[now.strftime(dateformat)])'''
+      say_warnings([warn_md004_url,warn_md003_url])
 
    if saytodo == True:
      # say the todo list from google docs spreadsheet
-      #festival.say('Your To Do List And Appointments For Today ...')
-      #say_todos(todolist)
+      festival.say('Your To Do List And Appointments For Today ...')
+      say_todos(todolist)
       say_gcal('today')
-
 
 if __name__ == '__main__':
   main()
