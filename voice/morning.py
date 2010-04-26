@@ -36,7 +36,7 @@ except ImportError:
       TTSENGINE = pyttsx
       TTSENGINENAME = 'pyttsx'
    except ImportError:
-      print('please install either festival or pttsx')
+      print('please install either festival or pyttsx')
       exit()
 import datetime
 import time
@@ -145,7 +145,10 @@ class getGcalItems:
       self.cal_client.email = email
       self.cal_client.password = password
       self.cal_client.source = 'Google-Calendar_Python_Sample-1.0'
-      self.cal_client.ProgrammaticLogin()
+      try:
+         self.cal_client.ProgrammaticLogin()
+      except BadAuthentication:
+         return False
       self.author = 'api.rboyd@gmail.com (Ryan Boyd)'
 
    def _DateRangeQuery(self, start_date='1970-01-01', end_date='2069-12-31'):
@@ -200,7 +203,10 @@ class getTodoItems:
     self.gd_client.email = email
     self.gd_client.password = password
     self.gd_client.source = 'Spreadsheets GData Sample'
-    self.gd_client.ProgrammaticLogin()
+    try:
+      self.gd_client.ProgrammaticLogin()
+    except BadAuthentication:
+         return False
     self.curr_key = ''
     self.curr_wksht_id = ''
     self.list_feed = None
@@ -338,6 +344,8 @@ def say_warnings(urls):
    warnings = []
    for url in urls:
       warnings = set(warnings).union(get_warning(url))
+   if len(warnings) > 0:
+      tts.say('Current Weather Alerts')
    for w in warnings:
       print(w)
       tts.say(w)
@@ -439,7 +447,7 @@ def main():
       say_warnings([warn_md004_url,warn_md003_url])
 
    if saytodo == True:
-     # say the todo list from google docs spreadsheet
+     # say the google calendar appointments and the todo list from google docs spreadsheet
       tts.say('Your To Do List And Appointments For Today ...')
       say_todos(todolist)
       say_gcal('today')
