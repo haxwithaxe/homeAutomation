@@ -48,7 +48,6 @@ import atom.service
 import gdata.spreadsheet
 import gdata.calendar
 import atom
-import getopt
 import sys
 import urllib
 import string
@@ -118,6 +117,7 @@ ABRVLIST = [
 ['[^a-zA-Z]F[\W]',' degrees fahrenheit '],
 ['[^a-zA-Z]C[\W]',' degrees celsius'],
 ['&amp;',' and '],
+['[\W]&[\W]',' and ']
 ] # END OF ABRVLIST
 
 GOOGLETSFORMAT = '%Y-%m-%dT%H:%M:%S'
@@ -156,7 +156,6 @@ class getGcalItems:
       cal_list = self.cal_client.GetAllCalendarsFeed()
       for c in cal_list.entry:
          uri = urllib.unquote(c.id.text.split('/')[8])
-         #print(uri)
          query = gdata.calendar.service.CalendarEventQuery(uri,'private','full')
          query.start_min = start_date
          query.start_max = end_date 
@@ -409,7 +408,7 @@ def main():
    thisday = 'anyday'
 
    # the fist thing the computer says
-   #festival.say('good morning ... it\'s time to get up ...')
+   festival.say('good morning ... it\'s time to get up ...')
 
 
    for i in workdays:
